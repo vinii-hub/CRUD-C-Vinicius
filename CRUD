@@ -4,7 +4,9 @@
 #define MAX_CLI 50
 #define MAX_PROD 10
 #define MAX_REGS 100
+#define MAX_ITENS_VENDA 10
 
+// Structs principais
 typedef struct {
     int codigo;
     char nome[50];
@@ -19,22 +21,32 @@ typedef struct {
 } Item;
 
 typedef struct {
+    int produto_id;
+    int quantidade;
+    float valor_unitario;
+} ItemVenda;
+
+typedef struct {
+    int id_venda;
     int cliente_codigo;
-    int item_id;
-    int unidades;
+    char data[11];  // "dd/mm/yyyy"
+    ItemVenda itens[MAX_ITENS_VENDA];
+    int qtd_itens;
     float total;
-} Registro;
+} Venda;
 
 typedef struct {
     Pessoa clientes[MAX_CLI];
     Item produtos[MAX_PROD];
-    Registro vendas[MAX_REGS];
+    Venda vendas[MAX_REGS];
     int qtdClientes;
     int qtdProdutos;
     int qtdVendas;
 } Banco;
 
-Banco sistema = {0};
+Banco sistema = { .qtdClientes = 0, .qtdProdutos = 0, .qtdVendas = 0 };
+
+// Funções Clientes
 
 void inserirCliente() {
     if (sistema.qtdClientes >= MAX_CLI) {
@@ -46,7 +58,7 @@ void inserirCliente() {
     novo.codigo = sistema.qtdClientes + 1;
     printf("Nome do novo cliente: ");
     scanf(" %[^\n]", novo.nome);
-    printf("CPF do novo cliente (apenas numeros): ");
+    printf("CPF do novo cliente (apenas números): ");
     scanf(" %[^\n]", novo.cpf);
 
     sistema.clientes[sistema.qtdClientes++] = novo;
@@ -62,12 +74,73 @@ void mostrarClientes() {
 
     puts("\n-- Clientes --");
     for (int i = 0; i < sistema.qtdClientes; i++) {
-        printf("Código: %d | Nome: %s | CPF: %s\n",
-               sistema.clientes[i].codigo,
-               sistema.clientes[i].nome,
-               sistema.clientes[i].cpf);
+        printf("Código: %d | Nome: %s | CPF: %s\n", sistema.clientes[i].codigo, sistema.clientes[i].nome, sistema.clientes[i].cpf);
     }
 }
+
+void editarCliente() {
+    if (sistema.qtdClientes == 0) {
+        puts("Nenhum cliente para editar.");
+        return;
+    }
+
+    mostrarClientes();
+    int codigo;
+    printf("Informe o código do cliente a editar: ");
+    scanf("%d", &codigo);
+
+    for (int i = 0; i < sistema.qtdClientes; i++) {
+        if (sistema.clientes[i].codigo == codigo) {
+            printf("Novo nome (atual: %s): ", sistema.clientes[i].nome);
+            scanf(" %[^\n]", sistema.clientes[i].nome);
+            printf("Novo CPF (atual: %s): ", sistema.clientes[i].cpf);
+            scanf(" %[^\n]", sistema.clientes[i].cpf);
+            puts("Cliente atualizado.");
+            return;
+        }
+    }
+    puts("Cliente não encontrado.");
+}
+
+void removerCliente() {
+    if (sistema.qtdClientes == 0) {
+        puts("Nenhum cliente para remover.");
+        return;
+    }
+
+    mostrarClientes();
+    int codigo;
+    printf("Informe o código do cliente a remover: ");
+    scanf("%d", &codigo);
+
+    for (int i = 0; i < sistema.qtdClientes; i++) {
+        if (sistema.clientes[i].codigo == codigo) {
+            // Verifica se cliente possui vendas
+            int clienteComVenda = 0;
+            for (int k = 0; k < sistema.qtdVendas; k++) {
+                if (sistema.vendas[k].cliente_codigo == codigo) {
+                    clienteComVenda = 1;
+                    break;
+                }
+            }
+
+            if (clienteComVenda) {
+                puts("Não é possível remover. Cliente possui vendas registradas.");
+                return;
+            }
+
+            for (int j = i; j < sistema.qtdClientes - 1; j++) {
+                sistema.clientes[j] = sistema.clientes[j + 1];
+            }
+            sistema.qtdClientes--;
+            puts("Cliente removido.");
+            return;
+        }
+    }
+    puts("Cliente não encontrado.");
+}
+
+// Funções Produtos
 
 void inserirProduto() {
     if (sistema.qtdProdutos >= MAX_PROD) {
@@ -105,107 +178,30 @@ void mostrarProdutos() {
     }
 }
 
-void efetuarVenda() {
-    if (sistema.qtdClientes == 0 || sistema.qtdProdutos == 0) {
-        puts("Clientes ou produtos inexistentes.");
-        return;
-    }
-
-    mostrarClientes();
-    int codCliente;
-    printf("Informe o código do cliente: ");
-    scanf("%d", &codCliente);
-
-    if (codCliente < 1 || codCliente > sistema.qtdClientes) {
-        puts("Código de cliente inválido.");
+void editarProduto() {
+    if (sistema.qtdProdutos == 0) {
+        puts("Nenhum produto para editar.");
         return;
     }
 
     mostrarProdutos();
-    int idProduto;
-    printf("Informe o ID do produto: ");
-    scanf("%d", &idProduto);
+    int id;
+    printf("Informe o ID do produto a editar: ");
+    scanf("%d", &id);
 
-    if (idProduto < 1 || idProduto > sistema.qtdProdutos) {
-        puts("ID de produto inválido.");
-        return;
-    }
-
-    int qtd;
-    printf("Quantidade: ");
-    scanf("%d", &qtd);
-
-    Item *item = &sistema.produtos[idProduto - 1];
-    if (item->disponivel < qtd) {
-        puts("Estoque insuficiente.");
-        return;
-    }
-
-    Registro nova;
-    nova.cliente_codigo = codCliente;
-    nova.item_id = idProduto;
-    nova.unidades = qtd;
-    nova.total = item->valorUnitario * qtd;
-
-    item->disponivel -= qtd;
-    sistema.vendas[sistema.qtdVendas++] = nova;
-
-    puts("Venda registrada com sucesso!");
-}
-
-void mostrarVendas() {
-    if (sistema.qtdVendas == 0) {
-        puts("Nenhuma venda registrada.");
-        return;
-    }
-
-    puts("\n-- Vendas --");
-    for (int i = 0; i < sistema.qtdVendas; i++) {
-        Registro v = sistema.vendas[i];
-        Pessoa cliente = sistema.clientes[v.cliente_codigo - 1];
-        Item produto = sistema.produtos[v.item_id - 1];
-
-        printf("Venda %d | Cliente: %s | Produto: %s | Quantidade: %d | Total: R$%.2f\n",
-               i + 1, cliente.nome, produto.descricao, v.unidades, v.total);
-    }
-}
-
-void removerCliente() {
-    if (sistema.qtdClientes == 0) {
-        puts("Nenhum cliente para remover.");
-        return;
-    }
-
-    mostrarClientes();
-    int codigo;
-    printf("Informe o código do cliente a remover: ");
-    scanf("%d", &codigo);
-
-    for (int i = 0; i < sistema.qtdClientes; i++) {
-        if (sistema.clientes[i].codigo == codigo) {
-            int clienteComVenda = 0;
-            for (int k = 0; k < sistema.qtdVendas; k++) {
-                if (sistema.vendas[k].cliente_codigo == codigo) {
-                    clienteComVenda = 1;
-                    break;
-                }
-            }
-
-            if (clienteComVenda) {
-                puts("Não é possível remover. Cliente possui vendas registradas.");
-                return;
-            }
-
-            for (int j = i; j < sistema.qtdClientes - 1; j++) {
-                sistema.clientes[j] = sistema.clientes[j + 1];
-            }
-            sistema.qtdClientes--;
-            puts("Cliente removido.");
+    for (int i = 0; i < sistema.qtdProdutos; i++) {
+        if (sistema.produtos[i].id == id) {
+            printf("Nova descrição (atual: %s): ", sistema.produtos[i].descricao);
+            scanf(" %[^\n]", sistema.produtos[i].descricao);
+            printf("Novo preço unitário (atual: %.2f): ", sistema.produtos[i].valorUnitario);
+            scanf("%f", &sistema.produtos[i].valorUnitario);
+            printf("Nova quantidade disponível (atual: %d): ", sistema.produtos[i].disponivel);
+            scanf("%d", &sistema.produtos[i].disponivel);
+            puts("Produto atualizado.");
             return;
         }
     }
-
-    puts("Cliente não encontrado.");
+    puts("Produto não encontrado.");
 }
 
 void removerProduto() {
@@ -221,12 +217,17 @@ void removerProduto() {
 
     for (int i = 0; i < sistema.qtdProdutos; i++) {
         if (sistema.produtos[i].id == id) {
+            // Verifica se produto tem vendas
             int produtoComVenda = 0;
             for (int k = 0; k < sistema.qtdVendas; k++) {
-                if (sistema.vendas[k].item_id == id) {
-                    produtoComVenda = 1;
-                    break;
+                Venda *v = &sistema.vendas[k];
+                for (int j = 0; j < v->qtd_itens; j++) {
+                    if (v->itens[j].produto_id == id) {
+                        produtoComVenda = 1;
+                        break;
+                    }
                 }
+                if (produtoComVenda) break;
             }
 
             if (produtoComVenda) {
@@ -242,9 +243,129 @@ void removerProduto() {
             return;
         }
     }
-
     puts("Produto não encontrado.");
 }
+
+// Funções Vendas
+
+void inserirVenda() {
+    if (sistema.qtdClientes == 0 || sistema.qtdProdutos == 0) {
+        puts("Nenhum cliente ou produto cadastrado.");
+        return;
+    }
+
+    Venda nova;
+    nova.id_venda = sistema.qtdVendas + 1;
+
+    mostrarClientes();
+    printf("Digite o código do cliente: ");
+    scanf("%d", &nova.cliente_codigo);
+
+    if (nova.cliente_codigo < 1 || nova.cliente_codigo > sistema.qtdClientes) {
+        puts("Código de cliente inválido.");
+        return;
+    }
+
+    printf("Digite a data da venda (dd/mm/yyyy): ");
+    scanf(" %10[^\n]", nova.data);
+
+    nova.qtd_itens = 0;
+    nova.total = 0;
+
+    char continuar = 's';
+
+    while ((continuar == 's' || continuar == 'S') && nova.qtd_itens < MAX_ITENS_VENDA) {
+        mostrarProdutos();
+        int prod_id, qtd;
+        printf("Digite o ID do produto para adicionar: ");
+        scanf("%d", &prod_id);
+        if (prod_id < 1 || prod_id > sistema.qtdProdutos) {
+            puts("Produto inválido.");
+            continue;
+        }
+
+        printf("Quantidade: ");
+        scanf("%d", &qtd);
+
+        Item *produto = &sistema.produtos[prod_id - 1];
+
+        if (produto->disponivel < qtd) {
+            puts("Estoque insuficiente.");
+            continue;
+        }
+
+        produto->disponivel -= qtd;
+
+        ItemVenda item;
+        item.produto_id = prod_id;
+        item.quantidade = qtd;
+        item.valor_unitario = produto->valorUnitario;
+
+        nova.itens[nova.qtd_itens++] = item;
+        nova.total += qtd * produto->valorUnitario;
+
+        printf("Deseja adicionar outro item? (s/n): ");
+        scanf(" %c", &continuar);
+    }
+
+    sistema.vendas[sistema.qtdVendas++] = nova;
+    puts("Venda cadastrada com sucesso!");
+}
+
+void mostrarVendas() {
+    if (sistema.qtdVendas == 0) {
+        puts("Nenhuma venda registrada.");
+        return;
+    }
+
+    puts("\n-- Vendas --");
+    for (int i = 0; i < sistema.qtdVendas; i++) {
+        Venda v = sistema.vendas[i];
+        Pessoa cliente = sistema.clientes[v.cliente_codigo - 1];
+        printf("Venda ID: %d | Cliente: %s | Data: %s\n", v.id_venda, cliente.nome, v.data);
+        printf("Itens:\n");
+        for (int j = 0; j < v.qtd_itens; j++) {
+            ItemVenda item = v.itens[j];
+            Item prod = sistema.produtos[item.produto_id - 1];
+            printf(" - Produto: %s | Qtde: %d | Valor unit: R$%.2f | Subtotal: R$%.2f\n",
+                   prod.descricao, item.quantidade, item.valor_unitario, item.quantidade * item.valor_unitario);
+        }
+        printf("Total da venda: R$%.2f\n\n", v.total);
+    }
+}
+
+void removerVenda() {
+    if (sistema.qtdVendas == 0) {
+        puts("Nenhuma venda para remover.");
+        return;
+    }
+
+    mostrarVendas();
+    int id;
+    printf("Informe o ID da venda a remover: ");
+    scanf("%d", &id);
+
+    for (int i = 0; i < sistema.qtdVendas; i++) {
+        if (sistema.vendas[i].id_venda == id) {
+            // Repor estoque dos itens da venda
+            for (int j = 0; j < sistema.vendas[i].qtd_itens; j++) {
+                int prod_id = sistema.vendas[i].itens[j].produto_id;
+                int qtd = sistema.vendas[i].itens[j].quantidade;
+                sistema.produtos[prod_id - 1].disponivel += qtd;
+            }
+
+            for (int k = i; k < sistema.qtdVendas - 1; k++) {
+                sistema.vendas[k] = sistema.vendas[k + 1];
+            }
+            sistema.qtdVendas--;
+            puts("Venda removida.");
+            return;
+        }
+    }
+    puts("Venda não encontrada.");
+}
+
+// Menu
 
 void menuPrincipal() {
     int opcao;
@@ -253,12 +374,15 @@ void menuPrincipal() {
         puts("\n==== SISTEMA COMERCIAL ====");
         puts("1 - Novo Cliente");
         puts("2 - Listar Clientes");
-        puts("3 - Novo Produto");
-        puts("4 - Listar Produtos");
-        puts("5 - Realizar Venda");
-        puts("6 - Histórico de Vendas");
-        puts("7 - Remover Cliente");
+        puts("3 - Editar Cliente");
+        puts("4 - Remover Cliente");
+        puts("5 - Novo Produto");
+        puts("6 - Listar Produtos");
+        puts("7 - Editar Produto");
         puts("8 - Remover Produto");
+        puts("9 - Realizar Venda");
+        puts("10 - Listar Vendas");
+        puts("11 - Remover Venda");
         puts("0 - Sair");
         printf("Escolha: ");
         scanf("%d", &opcao);
@@ -266,16 +390,18 @@ void menuPrincipal() {
         switch (opcao) {
             case 1: inserirCliente(); break;
             case 2: mostrarClientes(); break;
-            case 3: inserirProduto(); break;
-            case 4: mostrarProdutos(); break;
-            case 5: efetuarVenda(); break;
-            case 6: mostrarVendas(); break;
-            case 7: removerCliente(); break;
+            case 3: editarCliente(); break;
+            case 4: removerCliente(); break;
+            case 5: inserirProduto(); break;
+            case 6: mostrarProdutos(); break;
+            case 7: editarProduto(); break;
             case 8: removerProduto(); break;
+            case 9: inserirVenda(); break;
+            case 10: mostrarVendas(); break;
+            case 11: removerVenda(); break;
             case 0: puts("Finalizando sistema."); break;
             default: puts("Opção inválida.");
         }
-
     } while (opcao != 0);
 }
 
